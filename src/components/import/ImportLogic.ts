@@ -2,10 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { validatePhoneNumber } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-interface ImportResult {
-  success: number;
+export interface ImportResult {
+  imported: number;
   duplicates: number;
   duplicateDetails: Array<{ name: string; phone: string }>;
+  data?: any[];
 }
 
 interface ImportLogicProps {
@@ -133,9 +134,10 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
 
       // إرسال نتائج الاستيراد
       onComplete({
-        success: newClients.length,
+        imported: newClients.length,
         duplicates: duplicates.length,
-        duplicateDetails
+        duplicateDetails,
+        data: newClients
       });
 
       // عرض رسالة نجاح

@@ -27,12 +27,12 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       setIsLoading(false);
       await onDataMapped(results);
     },
-    onError: async (error) => {
+    onError: (error) => {
       console.error('Error in import:', error);
       setIsLoading(false);
       toast({
         title: t('errors.importFailed'),
-        description: error.message,
+        description: error,
         variant: "destructive"
       });
     }

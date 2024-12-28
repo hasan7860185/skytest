@@ -3,13 +3,14 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { FileUp } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { FileDropZone } from "./FileDropZone";
 import { FieldMapping } from "./FieldMapping";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
+import type { ImportResult } from "./ImportLogic";
 
 interface ImportClientsSheetProps {
   children?: React.ReactNode;
@@ -24,7 +25,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
   const [isImporting, setIsImporting] = useState(false);
   const queryClient = useQueryClient();
 
-  const handleFileSelect = useCallback((selectedFile: File) => {
+  const handleFileSelect = (selectedFile: File) => {
     console.log('File selected:', selectedFile.name);
     setFile(selectedFile);
     toast({
@@ -32,9 +33,9 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
       description: selectedFile.name,
       duration: 3000,
     });
-  }, [isRTL, toast]);
+  };
 
-  const handleImportComplete = useCallback(async (results: any) => {
+  const handleDataMapped = async (results: ImportResult) => {
     try {
       setIsImporting(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,18 +50,18 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
         return;
       }
 
-      // تحديث البيانات
+      // Update data
       await queryClient.invalidateQueries({ queryKey: ['clients'] });
       
-      // إغلاق النافذة وإعادة تعيين الحالة
+      // Close sheet and reset state
       setOpen(false);
       setFile(null);
 
       toast({
         title: isRTL ? 'تم الاستيراد بنجاح' : 'Import Successful',
         description: isRTL 
-          ? `تم استيراد ${results.success} عميل، ${results.duplicates} مكرر`
-          : `Imported ${results.success} clients, ${results.duplicates} duplicates`,
+          ? `تم استيراد ${results.imported} عميل، ${results.duplicates} مكرر`
+          : `Imported ${results.imported} clients, ${results.duplicates} duplicates`,
         duration: 5000,
       });
 
@@ -75,16 +76,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
     } finally {
       setIsImporting(false);
     }
-  }, [isRTL, queryClient, t, toast]);
-
-  const handleError = useCallback((error: string) => {
-    toast({
-      title: t('errors.title'),
-      description: error,
-      variant: "destructive",
-      duration: 5000,
-    });
-  }, [t, toast]);
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -126,9 +118,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
           ) : (
             <FieldMapping
               file={file}
-              onComplete={handleImportComplete}
-              onError={handleError}
-              isImporting={isImporting}
+              onDataMapped={handleDataMapped}
             />
           )}
         </ScrollArea>
