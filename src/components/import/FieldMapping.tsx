@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import { useImportLogic } from "./ImportLogic";
 import { useToast } from "@/components/ui/use-toast";
+import type { ImportResult } from "./ImportLogic";
 
 interface FieldMappingProps {
   file: File;
-  onDataMapped: (data: any[]) => Promise<void>;
+  onDataMapped: (result: ImportResult) => Promise<void>;
 }
 
 export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
