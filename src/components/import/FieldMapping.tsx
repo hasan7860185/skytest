@@ -5,12 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
-import { useImportLogic } from "./ImportLogic";
+import { useImportLogic, ImportResult } from "./ImportLogic";
 import { useToast } from "@/components/ui/use-toast";
 
 interface FieldMappingProps {
   file: File;
-  onDataMapped: (data: any[]) => Promise<void>;
+  onDataMapped: (result: ImportResult) => Promise<void>;
 }
 
 export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
@@ -27,8 +27,14 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       setIsLoading(false);
       await onDataMapped(results);
     },
-    onError: () => {
+    onError: async (error) => {
+      console.error('Error in import:', error);
       setIsLoading(false);
+      toast({
+        title: t('errors.importFailed'),
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
@@ -86,7 +92,6 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
         setWorksheet(ws);
         setHeaders(fileHeaders);
 
-        // التعيين التلقائي للحقول
         const autoMappings: Record<string, string> = {};
         fileHeaders.forEach(header => {
           const headerLower = header.toLowerCase().trim();
@@ -205,7 +210,13 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       }
 
       setIsLoading(true);
-      await processClients(data);
+      const result: ImportResult = {
+        imported: 0,
+        duplicates: 0,
+        duplicateDetails: [],
+        data: data
+      };
+      await onDataMapped(result);
     } catch (error) {
       console.error('Error processing data:', error);
       toast({
@@ -216,7 +227,7 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       });
       setIsLoading(false);
     }
-  }, [worksheet, isLoading, mappings, processData, processClients, t]);
+  }, [worksheet, isLoading, mappings, processData, onDataMapped, t]);
 
   const handleMappingChange = useCallback((field: string, header: string) => {
     setMappings(prev => ({
