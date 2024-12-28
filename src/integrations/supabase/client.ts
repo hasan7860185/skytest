@@ -5,85 +5,114 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables');
+  throw new Error('خطأ: لم يتم العثور على متغيرات البيئة الخاصة بـ Supabase');
 }
 
-// Create a singleton instance
+// إنشاء نسخة واحدة من العميل
 let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
 
-export const supabase = (() => {
-  if (supabaseInstance) return supabaseInstance;
-
-  supabaseInstance = createClient<Database>(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      storageKey: 'supabase.auth.token',
+// تكوين خيارات العميل
+const clientOptions = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'sky-aqaar-auth',
+  },
+  global: {
+    headers: {
+      'x-application-name': 'sky-aqaar',
     },
-    global: {
-      headers: {
-        'X-Client-Info': 'supabase-js-web',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
-      },
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
     },
-    db: {
-      schema: 'public',
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
-      },
-    }
-  });
+  },
+};
 
-  return supabaseInstance;
-})();
-
-// Add error handling and logging for auth state changes
-supabase.auth.onAuthStateChange((event, session) => {
-  console.log('Auth state changed:', event, session?.user?.id);
-  
-  if (event === 'SIGNED_OUT') {
-    // Clear any cached data
-    localStorage.removeItem('supabase.auth.token');
-  } else if (event === 'SIGNED_IN') {
-    console.log('User signed in successfully');
-  } else if (event === 'TOKEN_REFRESHED') {
-    console.log('Token refreshed successfully');
-  } else if (event === 'USER_UPDATED') {
-    console.log('User updated');
-  }
-});
-
-// Add health check function
-export async function checkSupabaseConnection() {
-  try {
-    const { data, error } = await supabase.from('profiles').select('count').limit(1);
-    if (error) throw error;
-    console.log('Supabase connection successful');
-    return true;
-  } catch (error) {
-    console.error('Supabase connection error:', error);
-    return false;
-  }
-}
-
-// Add retry logic for failed requests
-export async function retryRequest<T>(operation: () => Promise<T>, maxRetries = 3): Promise<T> {
+// دالة لإعادة المحاولة في حالة فشل الطلب
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> {
   let lastError: any;
+  
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      console.error(`Request failed (attempt ${i + 1}/${maxRetries}):`, error);
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
     }
   }
+  
   throw lastError;
 }
+
+// دالة للتحقق من حالة الاتصال
+async function checkConnection(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('clients').select('count').limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// تصدير كائن العميل مع وظائف إضافية
+export const supabase = (() => {
+  if (supabaseInstance) return supabaseInstance;
+
+  supabaseInstance = createClient<Database>(supabaseUrl, supabaseKey, clientOptions);
+
+  // إضافة دوال مساعدة للعميل
+  const enhancedClient = {
+    ...supabaseInstance,
+    
+    // دالة للتحقق من الاتصال
+    checkConnection,
+    
+    // دالة لإعادة المحاولة
+    async retryQuery<T>(query: () => Promise<T>): Promise<T> {
+      return retryOperation(query);
+    },
+    
+    // دالة للتحقق من الجلسة
+    async validateSession() {
+      const { data: { session }, error } = await this.auth.getSession();
+      if (error) throw error;
+      return session;
+    },
+    
+    // دالة لإعادة الاتصال
+    async reconnect() {
+      try {
+        await this.removeAllChannels();
+        await this.removeAllSubscriptions();
+        supabaseInstance = createClient<Database>(supabaseUrl, supabaseKey, clientOptions);
+        return true;
+      } catch (error) {
+        console.error('فشل في إعادة الاتصال:', error);
+        return false;
+      }
+    }
+  };
+
+  return enhancedClient;
+})();
+
+// التحقق من الاتصال عند بدء التطبيق
+checkConnection().then(isConnected => {
+  if (!isConnected) {
+    console.warn('تحذير: فشل الاتصال بـ Supabase');
+  }
+});
+
+export default supabase;
