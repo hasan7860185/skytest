@@ -5,6 +5,7 @@ export interface ImportResult {
   imported: number;
   duplicates: number;
   duplicateDetails: Array<{ name: string; phone: string }>;
+  data?: any[]; // Add this to store the actual data
 }
 
 interface UseImportLogicProps {
@@ -21,7 +22,8 @@ export const useImportLogic = ({ onComplete, onError }: UseImportLogicProps) => 
       const result: ImportResult = {
         imported: 0,
         duplicates: 0,
-        duplicateDetails: []
+        duplicateDetails: [],
+        data: mappedData
       };
 
       for (const client of mappedData) {

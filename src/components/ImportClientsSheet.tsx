@@ -138,7 +138,9 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
         }
       });
 
-      await processClients(mappedData as any[]);
+      if (mappedData.data) {
+        await processClients(mappedData.data);
+      }
 
     } catch (error: any) {
       console.error('Error in handleDataMapped:', error);

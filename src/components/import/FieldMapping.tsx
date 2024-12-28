@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -92,7 +92,6 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
         setWorksheet(ws);
         setHeaders(fileHeaders);
 
-        // التعيين التلقائي للحقول
         const autoMappings: Record<string, string> = {};
         fileHeaders.forEach(header => {
           const headerLower = header.toLowerCase().trim();
@@ -211,7 +210,13 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       }
 
       setIsLoading(true);
-      await processClients(data);
+      const result: ImportResult = {
+        imported: 0,
+        duplicates: 0,
+        duplicateDetails: [],
+        data: data
+      };
+      await onDataMapped(result);
     } catch (error) {
       console.error('Error processing data:', error);
       toast({
@@ -222,7 +227,7 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       });
       setIsLoading(false);
     }
-  }, [worksheet, isLoading, mappings, processData, processClients, t]);
+  }, [worksheet, isLoading, mappings, processData, onDataMapped, t]);
 
   const handleMappingChange = useCallback((field: string, header: string) => {
     setMappings(prev => ({
