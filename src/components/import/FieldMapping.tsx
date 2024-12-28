@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
-import { useImportLogic } from "./ImportLogic";
+import { useImportLogic, ImportResult } from "./ImportLogic";
 import { useToast } from "@/components/ui/use-toast";
-import type { ImportResult } from "./ImportLogic";
 
 interface FieldMappingProps {
   file: File;
@@ -28,8 +27,14 @@ export function FieldMapping({ file, onDataMapped }: FieldMappingProps) {
       setIsLoading(false);
       await onDataMapped(results);
     },
-    onError: () => {
+    onError: async (error) => {
+      console.error('Error in import:', error);
       setIsLoading(false);
+      toast({
+        title: t('errors.importFailed'),
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
