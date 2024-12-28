@@ -15,12 +15,13 @@ interface ImportLogicProps {
 
 export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
   const { toast } = useToast();
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 50; // تقليل حجم الدفعة لتحسين الأداء
+  const PARALLEL_BATCHES = 3; // عدد الدفعات المتوازية
 
   // كاش لتخزين أرقام الهواتف الموجودة
   let phoneNumbersCache = new Set<string>();
   let lastCacheUpdate = 0;
-  const CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
+  const CACHE_TTL = 10 * 60 * 1000; // 10 دقائق
 
   const refreshPhoneNumbersCache = async () => {
     const now = Date.now();
@@ -44,15 +45,36 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
     }
   };
 
+  const insertBatch = async (clients: any[]) => {
+    if (clients.length === 0) return;
+
+    try {
+      const { error } = await supabase.from("clients").insert(clients);
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error inserting batch:", error);
+      throw new Error("فشل في إدخال مجموعة من العملاء");
+    }
+  };
+
+  const processBatchParallel = async (batches: any[][]) => {
+    try {
+      await Promise.all(batches.map(batch => insertBatch(batch)));
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const processClients = async (clients: any[]) => {
     try {
       await refreshPhoneNumbersCache();
 
       let newClients: any[] = [];
+      let currentBatch: any[] = [];
+      let batches: any[][] = [];
       let duplicates: any[] = [];
       let duplicateDetails: Array<{ name: string; phone: string }> = [];
       let processedCount = 0;
-      const totalClients = clients.length;
 
       // معالجة العملاء
       for (const client of clients) {
@@ -74,7 +96,7 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
 
         // إضافة العميل الجديد
         const timestamp = new Date().toISOString();
-        newClients.push({
+        const newClient = {
           ...client,
           phone,
           created_at: timestamp,
@@ -82,66 +104,54 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
           status: "new",
           country: "Egypt",
           contact_method: "phone"
-        });
+        };
 
-        // تحديث الكاش
+        currentBatch.push(newClient);
         phoneNumbersCache.add(phone);
+        newClients.push(newClient);
 
-        // إدخال البيانات على دفعات
-        if (newClients.length >= BATCH_SIZE) {
-          await insertBatch(newClients);
-          newClients = [];
+        // إدارة الدفعات
+        if (currentBatch.length >= BATCH_SIZE) {
+          batches.push([...currentBatch]);
+          currentBatch = [];
+
+          // معالجة الدفعات المتوازية
+          if (batches.length >= PARALLEL_BATCHES) {
+            await processBatchParallel(batches);
+            batches = [];
+          }
         }
       }
 
-      // إدخال الدفعة الأخيرة
-      if (newClients.length > 0) {
-        await insertBatch(newClients);
+      // معالجة الدفعات المتبقية
+      if (currentBatch.length > 0) {
+        batches.push(currentBatch);
+      }
+      if (batches.length > 0) {
+        await processBatchParallel(batches);
       }
 
-      const result: ImportResult = {
-        success: processedCount - duplicates.length,
+      // إرسال نتائج الاستيراد
+      onComplete({
+        success: newClients.length,
         duplicates: duplicates.length,
         duplicateDetails
-      };
-
-      // عرض نتيجة الاستيراد
-      toast({
-        title: "تم الاستيراد بنجاح",
-        description: `تم استيراد ${result.success} عميل، ${result.duplicates} مكرر`,
-        duration: 5000,
       });
 
-      onComplete(result);
+      // عرض رسالة نجاح
+      toast({
+        title: "تم الاستيراد بنجاح",
+        description: `تم استيراد ${newClients.length} عميل، وتم تجاهل ${duplicates.length} عميل مكرر`,
+        duration: 5000,
+      });
 
     } catch (error) {
       console.error("Error processing clients:", error);
-      const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع";
-      toast({
-        title: "خطأ",
-        description: message,
-        variant: "destructive",
-        duration: 5000,
-      });
-      onError(message);
-    }
-  };
-
-  const insertBatch = async (batch: any[]) => {
-    try {
-      const { error } = await supabase
-        .from("clients")
-        .insert(batch)
-        .throwOnError();
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error inserting batch:", error);
-      throw new Error("فشل في حفظ البيانات");
+      onError(error instanceof Error ? error.message : "حدث خطأ غير معروف");
     }
   };
 
   return {
-    processClients,
+    processClients
   };
 }
