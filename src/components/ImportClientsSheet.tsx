@@ -6,7 +6,7 @@ import { FileUp } from "lucide-react";
 import { useState } from "react";
 import { FileDropZone } from "./import/FileDropZone";
 import { FieldMapping } from "./import/FieldMapping";
-import { useImportLogic } from "./import/ImportLogic";
+import { useImportLogic, ImportResult } from "./import/ImportLogic";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
   const queryClient = useQueryClient();
 
   const { processClients } = useImportLogic({
-    onComplete: async (result) => {
+    onComplete: async (result: ImportResult) => {
       if (result.duplicates > 0) {
         const duplicateMessage = isRTL
           ? `تم العثور على ${result.duplicates} عميل تم إضافته سابقاً`
@@ -116,7 +116,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
     );
   };
 
-  const handleDataMapped = async (mappedData: any[]) => {
+  const handleDataMapped = async (mappedData: ImportResult) => {
     try {
       console.log('Starting import with mapped data:', mappedData);
       
@@ -138,7 +138,7 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
         }
       });
 
-      await processClients(mappedData);
+      await processClients(mappedData as any[]);
 
     } catch (error: any) {
       console.error('Error in handleDataMapped:', error);
