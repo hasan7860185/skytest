@@ -1,9 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { validatePhoneNumber } from "@/lib/utils";
-import { useToast } from "@/components/ui/use-toast";
 
 interface ImportResult {
-  success: number;
+  imported: number;
   duplicates: number;
   duplicateDetails: Array<{ name: string; phone: string }>;
 }
@@ -14,13 +13,12 @@ interface ImportLogicProps {
 }
 
 export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
-  const { toast } = useToast();
   const BATCH_SIZE = 100;
 
-  // كاش لتخزين أرقام الهواتف الموجودة
+  // Cache for phone numbers
   let phoneNumbersCache = new Set<string>();
   let lastCacheUpdate = 0;
-  const CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   const refreshPhoneNumbersCache = async () => {
     const now = Date.now();
@@ -40,7 +38,7 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
       lastCacheUpdate = now;
     } catch (error) {
       console.error("Error refreshing phone numbers cache:", error);
-      throw new Error("فشل في تحديث قائمة أرقام الهواتف");
+      throw new Error("Failed to update phone numbers list");
     }
   };
 
@@ -52,17 +50,18 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
       let duplicates: any[] = [];
       let duplicateDetails: Array<{ name: string; phone: string }> = [];
       let processedCount = 0;
-      const totalClients = clients.length;
 
-      // معالجة العملاء
+      // Process clients
       for (const client of clients) {
         processedCount++;
 
-        // تنظيف وتحقق من رقم الهاتف
-        const phone = validatePhoneNumber(client.phone);
-        if (!phone) continue;
+        // Clean and validate phone number
+        const validatedPhone = validatePhoneNumber(client.phone);
+        if (!validatedPhone) continue;
 
-        // التحقق من التكرار
+        const phone = client.phone;
+
+        // Check for duplicates
         if (phoneNumbersCache.has(phone)) {
           duplicates.push(client);
           duplicateDetails.push({
@@ -72,7 +71,7 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
           continue;
         }
 
-        // إضافة العميل الجديد
+        // Add new client
         const timestamp = new Date().toISOString();
         newClients.push({
           ...client,
@@ -84,45 +83,32 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
           contact_method: "phone"
         });
 
-        // تحديث الكاش
+        // Update cache
         phoneNumbersCache.add(phone);
 
-        // إدخال البيانات على دفعات
+        // Insert in batches
         if (newClients.length >= BATCH_SIZE) {
           await insertBatch(newClients);
           newClients = [];
         }
       }
 
-      // إدخال الدفعة الأخيرة
+      // Insert final batch
       if (newClients.length > 0) {
         await insertBatch(newClients);
       }
 
       const result: ImportResult = {
-        success: processedCount - duplicates.length,
+        imported: processedCount - duplicates.length,
         duplicates: duplicates.length,
         duplicateDetails
       };
-
-      // عرض نتيجة الاستيراد
-      toast({
-        title: "تم الاستيراد بنجاح",
-        description: `تم استيراد ${result.success} عميل، ${result.duplicates} مكرر`,
-        duration: 5000,
-      });
 
       onComplete(result);
 
     } catch (error) {
       console.error("Error processing clients:", error);
-      const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع";
-      toast({
-        title: "خطأ",
-        description: message,
-        variant: "destructive",
-        duration: 5000,
-      });
+      const message = error instanceof Error ? error.message : "Unexpected error occurred";
       onError(message);
     }
   };
@@ -137,7 +123,7 @@ export function useImportLogic({ onComplete, onError }: ImportLogicProps) {
       if (error) throw error;
     } catch (error) {
       console.error("Error inserting batch:", error);
-      throw new Error("فشل في حفظ البيانات");
+      throw new Error("Failed to save data");
     }
   };
 

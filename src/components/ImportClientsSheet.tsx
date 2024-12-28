@@ -6,7 +6,7 @@ import { FileUp } from "lucide-react";
 import { useState } from "react";
 import { FileDropZone } from "./import/FileDropZone";
 import { FieldMapping } from "./import/FieldMapping";
-import { ImportLogic } from "./import/ImportLogic";
+import { useImportLogic } from "./import/ImportLogic";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,46 +22,10 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
   const isRTL = i18n.language === 'ar';
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const importLogic = new ImportLogic();
   const queryClient = useQueryClient();
 
-  const handleFileSelect = (selectedFile: File) => {
-    console.log('File selected:', selectedFile.name);
-    setFile(selectedFile);
-    toast.success(
-      isRTL ? `تم اختيار الملف: ${selectedFile.name}` : `File selected: ${selectedFile.name}`,
-      {
-        duration: 3000,
-        position: isRTL ? 'bottom-left' : 'bottom-right',
-      }
-    );
-  };
-
-  const handleDataMapped = async (mappedData: any[]) => {
-    try {
-      console.log('Starting import with mapped data:', mappedData);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        await Swal.fire({
-          icon: 'error',
-          title: t('errors.unauthorized'),
-          text: isRTL ? 'يرجى تسجيل الدخول أولاً' : 'Please login first',
-        });
-        return;
-      }
-
-      await Swal.fire({
-        title: isRTL ? 'جاري معالجة البيانات...' : 'Processing data...',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      const result = await importLogic.importClients(mappedData, user.id);
-      console.log('Import result:', result);
-
+  const { processClients } = useImportLogic({
+    onComplete: async (result) => {
       if (result.duplicates > 0) {
         const duplicateMessage = isRTL
           ? `تم العثور على ${result.duplicates} عميل تم إضافته سابقاً`
@@ -118,16 +82,15 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
       }
 
       await queryClient.invalidateQueries({ queryKey: ['clients'] });
-      
       setOpen(false);
       setFile(null);
-
-    } catch (error: any) {
+    },
+    onError: async (error) => {
       console.error('Error importing clients:', error);
       
-      let errorMessage = error.message || t('errors.importFailed');
-      if (error.message?.includes('Failed to fetch') && 
-          error.stack?.includes('kaspersky-labs')) {
+      let errorMessage = error;
+      if (error?.includes('Failed to fetch') && 
+          error?.includes('kaspersky-labs')) {
         errorMessage = isRTL ? 
           'يرجى تعطيل كاسبرسكي مؤقتاً أو إضافة النطاق إلى القائمة البيضاء' : 
           'Please temporarily disable Kaspersky or add the domain to whitelist';
@@ -137,6 +100,52 @@ export function ImportClientsSheet({ children }: ImportClientsSheetProps) {
         icon: 'error',
         title: isRTL ? 'حدث خطأ' : 'Error',
         text: errorMessage
+      });
+    }
+  });
+
+  const handleFileSelect = (selectedFile: File) => {
+    console.log('File selected:', selectedFile.name);
+    setFile(selectedFile);
+    toast.success(
+      isRTL ? `تم اختيار الملف: ${selectedFile.name}` : `File selected: ${selectedFile.name}`,
+      {
+        duration: 3000,
+        position: isRTL ? 'bottom-left' : 'bottom-right',
+      }
+    );
+  };
+
+  const handleDataMapped = async (mappedData: any[]) => {
+    try {
+      console.log('Starting import with mapped data:', mappedData);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        await Swal.fire({
+          icon: 'error',
+          title: t('errors.unauthorized'),
+          text: isRTL ? 'يرجى تسجيل الدخول أولاً' : 'Please login first',
+        });
+        return;
+      }
+
+      await Swal.fire({
+        title: isRTL ? 'جاري معالجة البيانات...' : 'Processing data...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      await processClients(mappedData);
+
+    } catch (error: any) {
+      console.error('Error in handleDataMapped:', error);
+      await Swal.fire({
+        icon: 'error',
+        title: isRTL ? 'حدث خطأ' : 'Error',
+        text: error.message || t('errors.importFailed')
       });
     }
   };
