@@ -1,0 +1,46 @@
+{
+  "clients": {
+    "importClients": {
+      "notifications": {
+        "processing": "جاري المعالجة...",
+        "readingFile": "جاري قراءة الملف",
+        "preparingData": "جاري تحضير البيانات",
+        "importing": "جاري استيراد البيانات",
+        "success": "تم بنجاح",
+        "fileRead": "تم قراءة الملف بنجاح",
+        "importComplete": "تم استيراد البيانات بنجاح",
+        "warning": "تنبيه",
+        "mappingSuccess": "تم تعيين الحقول",
+        "phoneFound": "تم العثور على حقل رقم الهاتف"
+      },
+      "errors": {
+        "title": "خطأ",
+        "invalidFileType": "نوع الملف غير صالح. يرجى اختيار ملف Excel (.xlsx, .xls) أو CSV",
+        "readError": "فشل في قراءة الملف",
+        "emptyFile": "الملف لا يحتوي على أي بيانات",
+        "emptySheet": "الصفحة فارغة",
+        "noHeaders": "لم يتم العثور على عناوين في الملف",
+        "unknown": "حدث خطأ غير متوقع",
+        "validation": "خطأ في التحقق",
+        "phoneRequired": "يجب تعيين حقل رقم الهاتف",
+        "noData": "لم يتم العثور على بيانات صالحة في الملف"
+      },
+      "mapping": {
+        "ignore": "تجاهل",
+        "import": "استيراد"
+      }
+    },
+    "form": {
+      "name": "الاسم",
+      "phone": "رقم الهاتف",
+      "email": "البريد الإلكتروني",
+      "facebook": "فيسبوك",
+      "city": "المدينة",
+      "project": "المشروع",
+      "budget": "الميزانية",
+      "campaign": "الحملة",
+      "postUrl": "رابط المنشور",
+      "comment": "التعليق"
+    }
+  }
+}
